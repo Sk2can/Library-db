@@ -75,6 +75,7 @@ def parse_quantity(id):
     quantity = cursor.fetchall()[0][0]
     return quantity
 
-def change_quantity(Id, quantity):
+def change_quantity(id, quantity):
     cursor = con.cursor()
-    cursor.execute("UPDATE Books SET Quantity = {} WHERE Book_Id = {}".format(quantity, Id))
+    cursor.execute("UPDATE Books SET Quantity = {} WHERE Book_Id = {}".format(quantity, id))
+    con.commit()
