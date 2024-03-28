@@ -15,25 +15,72 @@
   </property>
   <property name="windowIcon">
    <iconset>
-    <normaloff>images/icon.ico</normaloff>images/icon.ico</iconset>
+    <normaloff>C:/Users/khmel/.designer/backup/images/icon.ico</normaloff>C:/Users/khmel/.designer/backup/images/icon.ico</iconset>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
+    <layout class="QVBoxLayout" name="verticalLayout_2">
      <item>
-      <widget class="QLabel" name="Library_label">
-       <property name="text">
-        <string>Библиотека</string>
-       </property>
-      </widget>
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <widget class="QLabel" name="Library_label">
+         <property name="text">
+          <string>Выберите библиотеку</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="Library_comboBox">
+         <item>
+          <property name="text">
+           <string/>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
      </item>
      <item>
-      <widget class="QComboBox" name="Library_comboBox"/>
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <widget class="QLabel" name="Title_label">
+         <property name="text">
+          <string>Выберите книгу</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="book_comboBox">
+         <item>
+          <property name="text">
+           <string/>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <item>
+        <widget class="QLabel" name="error_label">
+         <property name="styleSheet">
+          <string notr="true">color: rgb(255, 0, 0);</string>
+         </property>
+         <property name="text">
+          <string>Выберите книгу!</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </item>
     </layout>
    </item>
    <item>
-    <widget class="QPushButton" name="pushButton">
+    <widget class="QPushButton" name="delete_pushButton">
      <property name="text">
       <string>Удалить</string>
      </property>

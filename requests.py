@@ -79,3 +79,8 @@ def change_quantity(id, quantity):
     cursor = con.cursor()
     cursor.execute("UPDATE Books SET Quantity = {} WHERE Book_Id = {}".format(quantity, id))
     con.commit()
+
+def delete_book(id):
+    cursor = con.cursor()
+    cursor.execute("DELETE FROM Books WHERE Book_Id = {}".format(id))
+    con.commit()

@@ -193,7 +193,35 @@ class BookRemoveWindow(QDialog):
     def __init__(self):
         super(BookRemoveWindow, self).__init__()
         uic.loadUi('Ui\\book_remove_window.ui', self)
+        self.Library_comboBox.addItems(requests.select_libraries())
+        self.Library_comboBox.currentTextChanged.connect(self.change_books_list)
+        self.error_label.hide()
 
+    def change_books_list(self):
+        self.book_comboBox.clear()
+        self.book_comboBox.insertItem(0,'')
+        lib = self.Library_comboBox.currentText()
+        self.book_comboBox.addItems(requests.select_books(lib))
+        self.delete_pushButton.clicked.connect(self.delete)
+
+    def delete(self):
+        if self.book_comboBox.currentText() != "":
+            requests.delete_book(id=self.get_id())
+            self.Library_comboBox.setCurrentIndex(0)
+            self.error_label.hide()
+        else:
+            self.error_label.show()
+
+    def get_id(self):
+        lib = self.Library_comboBox.currentText()
+        book = self.book_comboBox.currentText()
+        notes = requests.parse_notes("Books")
+        id = 1
+        for note in notes:
+            if note[1].strip() == lib.strip() and note[2].strip() == book.strip():
+                id = note[0]
+                break
+        return id
 
 class ChangeNumberOfBooks(QDialog):
     def __init__(self):
