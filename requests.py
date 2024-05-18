@@ -2,6 +2,15 @@ import pyodbc
 
 con = pyodbc.connect(Trusted_Connection='yes', driver='{SQL Server}', server='ETNA\\SQLEXPRESS', database='Library')
 
+def is_row_exist(table, column, value):
+    cursor = con.cursor()
+    cursor.execute("SELECT * FROM Library.dbo.{} WHERE {}='{}'".format(table, column, value))
+    row = cursor.fetchone()
+    if row:
+        return True
+    else:
+        return False
+
 def auth(login, password):
     cursor = con.cursor()
     cursor.execute("SELECT [Login], [Password] FROM [Library].[dbo].[Auth]")
@@ -9,6 +18,21 @@ def auth(login, password):
         if string[0].strip() == login and string[1].strip() == password:
             return True
     return False
+
+def add_user(login, password):
+    cursor = con.cursor()
+    cursor.execute(
+        "INSERT INTO Auth (Login, Password) VALUES (?,?)",
+        login, password)
+    con.commit()
+
+def user_sign_up(login, password, name, surname, patronymic, birthday, phone_number, email):
+    add_user(login, password)
+    cursor = con.cursor()
+    cursor.execute(
+        "INSERT INTO Readers (Login, Name, Surname, Patronymic, Birth_Date, Contact_Number, Email) VALUES (?,?,?,?,?,?,?)",
+        login, name, surname, patronymic, birthday, phone_number, email)
+    con.commit()
 
 def welcome(login):
     cursor = con.cursor()

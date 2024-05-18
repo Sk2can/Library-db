@@ -1,5 +1,8 @@
 import base64
+import re
 import sys
+from functools import reduce
+
 import requests
 import recources
 
@@ -13,9 +16,9 @@ from PyQt6.QtGui import QPixmap, QIcon
 Current_login, info = "", ""
 
 
-class AuthWindow(QMainWindow):
+class SignInWindow(QMainWindow):
     def __init__(self):
-        super(AuthWindow, self).__init__()
+        super(SignInWindow, self).__init__()
         uic.loadUi('Ui\\auth_window.ui', self)
         self.sign_up_label.setOpenExternalLinks(True)
         def mousePressEvent(event):
@@ -35,16 +38,56 @@ class AuthWindow(QMainWindow):
         else:
             self.error_label.setText("Веденные пароль или логин неверны!")
     def sign_up_click(self):
-        self.sign_up_window = SignUpWindow()
+        self.sign_up_window = UserSignUpWindow()
         self.sign_up_window.show()
         self.close()
 
 
-class SignUpWindow(QDialog):
+class UserSignUpWindow(QDialog):
     def __init__(self):
-        super(SignUpWindow, self).__init__()
+        super(UserSignUpWindow, self).__init__()
         uic.loadUi('Ui\\sign_up_window.ui', self)
+        self.sign_up_pushButton.clicked.connect(self.data_check)
 
+    def print_error(self,error_type):
+        match error_type:
+            case "phone":
+                self.error_label.setText("Такой телефон уже зарегистрирован!")
+            case "email":
+                self.error_label.setText("Такая почта уже зарегистрирована!")
+            case "login":
+                self.error_label.setText("Такой логин уже зарегистрирован!")
+
+    def data_check(self):
+        phone_number = self.phone_number_lineEdit.text()
+        rep = {'(': '', ')': '', '-': ''}
+        rep = dict((re.escape(k), v) for k, v in rep.items())
+        pattern = re.compile("|".join(rep.keys()))
+        phone_number = pattern.sub(lambda m: rep[re.escape(m.group(0))], phone_number)
+        if (self.login_lineEdit.text() != "" and self.password_lineEdit.text() != "" and
+                self.password_confirm_lineEdit.text() != "" and self.name_label.text() != "" and
+                self.surname_lineEdit.text() != "" and self.patronymic_lineEdit.text() != ""):
+            if (self.password_lineEdit.text() ==  self.password_confirm_lineEdit.text()):
+                if len(phone_number) == 12:
+                    if requests.is_row_exist("Auth", "Login", self.login_lineEdit.text()):
+                        self.print_error("login")
+                        return
+                    if requests.is_row_exist("Readers", "Contact_Number", phone_number):
+                        self.print_error("phone")
+                        return
+                    if requests.is_row_exist("Readers", "Email", self.email_lineEdit.text()):
+                        self.print_error("email")
+                        return
+                    requests.user_sign_up(self.login_lineEdit.text(),
+                                          self.password_lineEdit.text(),
+                                          self.name_lineEdit.text(),
+                                          self.surname_lineEdit.text(),
+                                          self.patronymic_lineEdit.text(),
+                                          self.birthday_dateEdit.date().toString('yyyy-MM-dd'),
+                                          phone_number,
+                                          self.email_lineEdit.text())
+                    self.close()
+                    auth_window.show()
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -113,14 +156,14 @@ class MainWindow(QMainWindow):
         self.verticalLayout.setStretch(1, 1)
         self.verticalLayout.setStretch(2, 10)
     def exit(self):
-        self.auth_window = AuthWindow()
+        self.auth_window = SignInWindow()
         app.closeAllWindows()
         self.auth_window.show()
     def show_info(self):
         self.user_info_window = UserInfoWindow()
         self.user_info_window.show()
     def change_num(self):
-        self.change_number_of_books = ChangeNumberOfBooks()
+        self.change_number_of_books = ChangeNumberOfBooksWindow()
         self.change_number_of_books.show()
     def add_book(self):
         self.book_add_window = BookAddWindow()
@@ -223,9 +266,10 @@ class BookRemoveWindow(QDialog):
                 break
         return id
 
-class ChangeNumberOfBooks(QDialog):
+
+class ChangeNumberOfBooksWindow(QDialog):
     def __init__(self):
-        super(ChangeNumberOfBooks, self).__init__()
+        super(ChangeNumberOfBooksWindow, self).__init__()
         uic.loadUi('Ui\\number_of_books_window.ui', self)
         self.quantity_spinBox.clear()
         self.Library_comboBox.addItems(requests.select_libraries())
@@ -261,6 +305,6 @@ class ChangeNumberOfBooks(QDialog):
 
 if __name__ == '__main__':  # Если мы запускаем файл напрямую, а не импортируем
     app = QtWidgets.QApplication(sys.argv)  # Новый экземпляр QApplication
-    auth_window = AuthWindow()  # Создаём объект класса ExampleApp
+    auth_window = SignInWindow()  # Создаём объект класса ExampleApp
     auth_window.show()  # Показываем окно
     app.exec()  # и запускаем приложение
