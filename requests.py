@@ -3,6 +3,23 @@ import pyodbc
 
 con = pyodbc.connect(Trusted_Connection='yes', driver='{SQL Server}', server='ETNA\\SQLEXPRESS', database='Library')
 
+def unrent_book(order_id):
+    cursor = con.cursor()
+    cursor.execute("SELECT Book_Id FROM Rented_Books WHERE Order_Id = '{}'".format(order_id))
+    book_id = cursor.fetchone()[0]
+    cursor.execute("DELETE FROM Rented_Books WHERE Order_Id = '{}'".format(order_id))
+    cursor.execute("UPDATE Books SET Quantity = Quantity + 1 WHERE Book_Id = '{}'".format(book_id))
+    con.commit()
+
+def join_rented_books():
+    cursor = con.cursor()
+    cursor.execute("SELECT Title, Library, Return_Date, CONCAT(R.Name, R.Surname, R.Patronymic), "
+                   "R.Contact_Number, R.Email, Order_Id FROM Rented_Books AS RB "
+                   "INNER JOIN Books AS B ON RB.Book_Id = B.Book_Id "
+                   "INNER JOIN Readers AS R ON R.Login = RB.Reader_Login")
+
+    return cursor.fetchall()
+
 def del_library(lib_name):
     cursor = con.cursor()
     cursor.execute("DELETE FROM Libraries WHERE Library_Name = '{}'".format(lib_name))
@@ -22,11 +39,10 @@ def update_info(table, column, key_column, key, new_value):
         table, column, new_value, key_column, key))
     con.commit()
 
-def del_expired_books():
+def show_expired_books(login):
     cursor = con.cursor()
-    cursor.execute("UPDATE Books SET Quantity = Quantity + 1 WHERE EXISTS(SELECT 1 FROM Rented_Books WHERE CAST(Return_Date AS DATETIME) < GETDATE());")
-    cursor.execute("DELETE FROM Rented_Books WHERE CAST(Return_Date AS DATETIME) < GETDATE()")
-    con.commit()
+    cursor.execute("SELECT COUNT (*) FROM Rented_Books WHERE Reader_Login = '{}' AND CAST(Return_Date AS DATETIME) < GETDATE()".format(login))
+    return cursor.fetchone()[0]
 
 def rent_book(book_info, login):
     cursor = con.cursor()
@@ -39,7 +55,7 @@ def rent_book(book_info, login):
 
 def search_book(id):
     cursor = con.cursor()
-    cursor.execute("SELECT Library, Author, Title, Release_Date, Language, Description, Quantity, Book_Id "
+    cursor.execute("SELECT Library, Author, Title, FORMAT(Release_Date, 'dd/MM/yyyy'), Language, Description, Quantity, Book_Id "
                    "FROM Library.dbo.Books WHERE Book_Id='{}'".format(id))
     return cursor.fetchone()
 

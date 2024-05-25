@@ -1,17 +1,16 @@
 import base64
 import re
 import sys
+from datetime import datetime
 from functools import reduce
-
 import requests
 import recources
-
 from PIL import Image
 from io import BytesIO
 from PyQt6.QtCore import Qt, QDate, QTime
 from PyQt6 import uic, QtWidgets, QtCore
-from PyQt6.QtWidgets import QMainWindow, QDialog, QFileDialog, QLabel, QTableWidgetItem, QTableWidget
-from PyQt6.QtGui import QPixmap, QIcon
+from PyQt6.QtWidgets import QMainWindow, QDialog, QFileDialog, QLabel, QTableWidgetItem, QTableWidget, QPushButton
+from PyQt6.QtGui import QPixmap, QIcon, QAction, QColor
 
 Current_login, info = "", ""
 
@@ -25,7 +24,7 @@ class SignInWindow(QMainWindow):
             self.sign_up_click()
         self.sign_up_label.mousePressEvent = mousePressEvent
         self.sign_in_button.clicked.connect(self.sign_in_click)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
 
     def sign_in_click(self):
@@ -50,7 +49,7 @@ class UserSignUpWindow(QDialog):
         super(UserSignUpWindow, self).__init__()
         uic.loadUi('Ui\\sign_up_window.ui', self)
         self.sign_up_pushButton.clicked.connect(self.data_check)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
 
     def print_error(self,error_type):
@@ -95,32 +94,52 @@ class UserSignUpWindow(QDialog):
 
 
 class BookRentWindow(QDialog):
-    def __init__(self, book_info):
+    def __init__(self, book_info, main_window):
         super(BookRentWindow, self).__init__()
+        self.main_window = main_window
         uic.loadUi('Ui\\book_rent_window.ui', self)
         self.book_pushButton.clicked.connect(self.rent_book)
         self.current_book = book_info
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
+        if requests.is_row_exist('Personal', 'Login', Current_login):
+            self.book_pushButton.hide()
     def rent_book(self):
         requests.rent_book(self.current_book, Current_login)
+        self.close()
+        self.main_window.update_books()
 
 
 class ClickableImageLabel(QLabel):
-    def __init__(self, parent=None):
+    def __init__(self, main_window, parent=None):
         super().__init__(parent)
+        self.main_window = main_window
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             book_info = requests.search_book(self.objectName())
-            self.book_rent_window = BookRentWindow(book_info)
+            self.book_rent_window = BookRentWindow(book_info, self.main_window)
             self.book_rent_window.show()
-            self.book_rent_window.book_name_label.setText(book_info[2])
+            self.book_rent_window.book_name_label.setText(book_info[2].rstrip())
             self.book_rent_window.author_label.setText(book_info[1])
             self.book_rent_window.date_label.setText(book_info[3])
             self.book_rent_window.description_plainTextEdit.setPlainText(book_info[5])
             self.book_rent_window.quantity_label.setText(str(book_info[6]))
             self.book_rent_window.library_label.setText(book_info[0])
+
+
+class RentButton(QPushButton):
+    def __init__(self,table, window, parent=None):
+        super().__init__(parent)
+        self.table = table
+        self.window = window
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            row = int(self.objectName())
+            requests.unrent_book(int(self.table.item(row, 6).text()))
+            self.table.setRowCount(0)
+            self.window.show_rent()
 
 
 class ChangePasswordWindow(QDialog):
@@ -129,7 +148,7 @@ class ChangePasswordWindow(QDialog):
         uic.loadUi('Ui\\change_password_window.ui', self)
         self.error_label.hide()
         self.pushButton.clicked.connect(self.password_change)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
 
     def password_change(self):
@@ -149,7 +168,7 @@ class ChangeLoginWindow(QDialog):
         self.error_label.hide()
         self.login_label.setText(Current_login)
         self.pushButton.clicked.connect(self.login_change)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
     def login_change(self):
         if requests.is_row_exist('Auth', 'Login', self.login_lineEdit.text()):
@@ -185,7 +204,16 @@ class MainWindow(QMainWindow):
         self.change_login_action.triggered.connect(self.change_login)
         self.change_password_action.triggered.connect(self.change_password)
         self.add_library_action.triggered.connect(self.add_library)
-        requests.del_expired_books()
+        self.menu_5 = QAction("Список взятых книг", self.menuBar)
+        self.menu_5.setObjectName("menu_5")
+        self.menuBar.addAction(self.menu_5)
+        self.menu_5.triggered.connect(self.show_rented_books)
+        self.debt_label.setText("У вас нет задолженностей.")
+        debt = requests.show_expired_books(Current_login)
+        if debt > 0:
+            self.debt_label.setText("У вас есть долг по несданным книгам: {}".format(debt))
+            self.debt_label.setStyleSheet("color: red;")
+            self.debt_label.show()
         cur_lib = requests.select_libraries()[0]
         self.display_books(cur_lib)
         if info[0] == "Reader":
@@ -195,9 +223,11 @@ class MainWindow(QMainWindow):
             self.menu_2.setTitle("")
             self.menu_3.clear()
             self.menu_3.setTitle("")
-        icon = QIcon(":/images/images/icon.ico")  # указываем путь к иконке в формате ":/путь/к/ресурсу"
+        icon = QIcon(":/images/icon.ico")  # указываем путь к иконке в формате ":/путь/к/ресурсу"
         #reload_ico = QPixmap(":/images/images/reload.ico")
         #self.reload_icon.setPixmap(reload_ico)
+        if (requests.is_row_exist('Personal', 'Login', Current_login)):
+            self.debt_label.setText('')
         self.setWindowIcon(icon)
 
     def update_books(self):
@@ -211,7 +241,7 @@ class MainWindow(QMainWindow):
         #books_dict = {}
         for book in range(requests.notes_count("Books")):
             note = notes[book][6]
-            if notes[book][1].strip() != table.strip():
+            if notes[book][1].strip() != table.strip() or notes[book][8] == 0:
                 continue
             pixmap = QPixmap()
             if note != None:
@@ -221,10 +251,10 @@ class MainWindow(QMainWindow):
                 image_data = buffer.getvalue()
                 pixmap.loadFromData(image_data)
             else:
-                pixmap = QPixmap(":/images/images/default.png")
+                pixmap = QPixmap(":/images/default.png")
             #books_dict[notes[book][1]] = notes[book][0]
             scaled_pixmap = pixmap.scaled(200, 313)
-            img = ClickableImageLabel('label')
+            img = ClickableImageLabel(self, 'label')
             stack = QtWidgets.QWidget()
             title = QtWidgets.QLabel(notes[book][2])
             stack_layout = QtWidgets.QVBoxLayout()
@@ -246,6 +276,11 @@ class MainWindow(QMainWindow):
         self.verticalLayout.setStretch(0, 1)
         self.verticalLayout.setStretch(1, 1)
         self.verticalLayout.setStretch(2, 10)
+
+    def show_rented_books(self):
+        self.show_rented_books_window = ShowRentedBooksWindow()
+        self.show_rented_books_window.show()
+
     def exit(self):
         self.auth_window = SignInWindow()
         app.closeAllWindows()
@@ -268,10 +303,6 @@ class MainWindow(QMainWindow):
     def change_staff_info(self):
         self.change_staff_info_window = ChangeStaffInfoWindow()
         self.change_staff_info_window.show()
-    def rent_book(self, book_info):
-        self.book_rent_window = BookRentWindow()
-        self.book_rent_window.show()
-        self.book_rent_window.book_name_label.setText(book_info[2])
 
     def change_login(self):
         self.change_login_window = ChangeLoginWindow()
@@ -293,12 +324,58 @@ class MainWindow(QMainWindow):
         self.edit_library_window = EditLibraryWindow()
         self.edit_library_window.show()
 
+
+class ShowRentedBooksWindow(QDialog):
+    def __init__(self):
+        super(ShowRentedBooksWindow, self).__init__()
+        uic.loadUi('Ui\\unrent_window.ui', self)
+        icon = QIcon(":/images/icon.ico")
+        self.setWindowIcon(icon)
+        self.show_rent()
+
+    def show_rent(self):
+        if not(requests.is_row_exist('Personal', 'Login', Current_login)):
+            for col in range(5):
+                self.rent_tableWidget.removeColumn(3)
+        #rented_books = requests.parse_notes("Rented_books")
+        join_table = requests.join_rented_books()
+        row = 0
+        for book in join_table:
+            self.rent_tableWidget.insertRow(self.rent_tableWidget.rowCount())
+            for column, value in enumerate(book):
+                item = QTableWidgetItem(str(value).rstrip())
+                if column == 3 and requests.is_row_exist('Personal', 'Login', Current_login):
+                    cleaned_text = ' '.join(value.split())
+                    item = QTableWidgetItem(str(cleaned_text))
+                if (column == 3 or column == 4 or column == 5) and not(requests.is_row_exist('Personal', 'Login', Current_login)):
+                    continue
+                if column == 2:
+                    current_datetime = datetime.now()
+                    if current_datetime > value:
+                        value = value.strftime('%d-%m-%Y')
+                        item = QTableWidgetItem(str(value).rstrip())
+                        item.setForeground(QColor(255, 0, 0))
+                        self.rent_tableWidget.setItem(row, column, item)
+                        continue
+                    value = value.strftime('%d-%m-%Y')
+                    item = QTableWidgetItem(str(value).rstrip())
+                    item.setForeground(QColor(0, 0, 0))
+                self.rent_tableWidget.setItem(row, column, item)
+            button = RentButton(self.rent_tableWidget, self)
+            icon = QIcon(':/images/check.ico')
+            button.setIcon(icon)
+            button.setObjectName(str(row))
+            #button.clicked.connect(self.remove_rent)
+            self.rent_tableWidget.setCellWidget(row, 7, button)
+            row += 1
+
+
 class ChangeUserInfoWindow(QDialog):
     def __init__(self):
         super(ChangeUserInfoWindow, self).__init__()
         uic.loadUi('Ui\\change_user_info_window.ui', self)
         self.applyButton.clicked.connect(self.change_data)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
         readers = requests.parse_notes("Readers")
         row = 0
@@ -308,6 +385,10 @@ class ChangeUserInfoWindow(QDialog):
                 item = QTableWidgetItem(str(value).rstrip())
                 if column == 0 or column == 1:
                     item.setFlags(Qt.ItemFlag.ItemIsEditable)
+                if column == 5:
+                    value = datetime.strptime(value, '%Y-%m-%d')
+                    new_date_str = value.strftime('%d.%m.%Y')
+                    item = QTableWidgetItem(str(new_date_str).rstrip())
                 self.usersTable.setItem(row, column, item)
             row +=1
 
@@ -331,7 +412,7 @@ class EditLibraryWindow(QDialog):
     def __init__(self):
         super(EditLibraryWindow, self).__init__()
         uic.loadUi('Ui\\changeLibraryInfo.ui', self)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
         self.library_comboBox.addItems(requests.select_libraries())
         self.library_comboBox.currentIndexChanged.connect(self.choose_lib)
@@ -366,11 +447,12 @@ class EditLibraryWindow(QDialog):
                                      str(self.computer_class_checkBox.isChecked()),
                                      str(self.reading_room_checkBox.isChecked()))
 
+
 class DeleteLibraryWindow(QDialog):
     def __init__(self):
         super(DeleteLibraryWindow, self).__init__()
         uic.loadUi('Ui\\deleteLibraryWindow.ui', self)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
         self.del_pushButton.clicked.connect(self.delete)
         self.library_comboBox.addItems(requests.select_libraries())
@@ -384,7 +466,7 @@ class AddLibraryWindow(QDialog):
     def __init__(self):
         super(AddLibraryWindow, self).__init__()
         uic.loadUi('Ui\\addLibraryWindow.ui', self)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
         self.pushButton.clicked.connect(self.add_info)
         self.error_label.hide()
@@ -402,12 +484,13 @@ class AddLibraryWindow(QDialog):
         else:
             self.error_label.setText("Заполните все поля!")
 
+
 class ChangeStaffInfoWindow(QDialog):
     def __init__(self):
         super(ChangeStaffInfoWindow, self).__init__()
         uic.loadUi('Ui\\change_staff_info_window.ui', self)
         self.pushButton.clicked.connect(self.change_data)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
         readers = requests.parse_notes("Personal")
         row = 0
@@ -435,11 +518,12 @@ class ChangeStaffInfoWindow(QDialog):
             all_rows.append(current_row)
         requests.update_employee_info(all_rows)
 
+
 class UserInfoWindow(QDialog):
     def __init__(self):
         super(UserInfoWindow, self).__init__()
         uic.loadUi('Ui\\user_info_window.ui', self)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
         if info[0] == "Personal":
             self.name_value_label.setText(info[1][3])
@@ -463,7 +547,9 @@ class UserInfoWindow(QDialog):
             self.ticket_contract_number_label.setText("Номер билета:")
             self.pasport_phone_value_label.setText(info[1][6])
             self.pasport_phone_label.setText("Телефон:")
-            self.SNILS_birthdate_value_label.setText(info[1][5])
+            value = datetime.strptime(info[1][5], '%Y-%m-%d')
+            new_date_str = value.strftime('%d.%m.%Y')
+            self.SNILS_birthdate_value_label.setText(new_date_str)
             self.SNILS_birthdate_label.setText("Дата рождения:")
 
 
@@ -474,7 +560,7 @@ class BookAddWindow(QDialog):
         self.Library_comboBox.addItems(requests.select_libraries())
         self.Add_pushButton.clicked.connect(self.add)
         self.Image_pushButton.clicked.connect(self.browsefiles)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
 
     def browsefiles(self):
@@ -508,7 +594,7 @@ class BookRemoveWindow(QDialog):
         self.Library_comboBox.addItems(requests.select_libraries())
         self.Library_comboBox.currentTextChanged.connect(self.change_books_list)
         self.error_label.hide()
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
 
     def change_books_list(self):
@@ -542,7 +628,7 @@ class ChangeNumberOfBooksWindow(QDialog):
     def __init__(self):
         super(ChangeNumberOfBooksWindow, self).__init__()
         uic.loadUi('Ui\\number_of_books_window.ui', self)
-        icon = QIcon(":/images/images/icon.ico")
+        icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
         self.quantity_spinBox.clear()
         self.Library_comboBox.addItems(requests.select_libraries())
