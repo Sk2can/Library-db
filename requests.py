@@ -110,6 +110,19 @@ def add_user(login, password):
         login, password)
     con.commit()
 
+def delete_user(login):
+    cursor = con.cursor()
+    cursor.execute("DELETE FROM Auth WHERE login = '{}'".format(login))
+    con.commit()
+
+def personal_sign_up(lib, login, password, name, surname, patronymic, passport, SNILS, INN):
+    add_user(login, password)
+    cursor = con.cursor()
+    cursor.execute(
+        "INSERT INTO Personal (Login, Library, Name, Surname, Patronymic, Passport_Number, SNILS_Number, INN_Number) VALUES (?,?,?,?,?,?,?,?)",
+        login, lib, name, surname, patronymic, passport, SNILS, INN)
+    con.commit()
+
 def user_sign_up(login, password, name, surname, patronymic, birthday, phone_number, email):
     add_user(login, password)
     cursor = con.cursor()

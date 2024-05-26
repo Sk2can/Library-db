@@ -1,4 +1,5 @@
 import base64
+import csv
 import re
 import sys
 from datetime import datetime
@@ -9,7 +10,8 @@ from PIL import Image
 from io import BytesIO
 from PyQt6.QtCore import Qt, QDate, QTime
 from PyQt6 import uic, QtWidgets, QtCore
-from PyQt6.QtWidgets import QMainWindow, QDialog, QFileDialog, QLabel, QTableWidgetItem, QTableWidget, QPushButton
+from PyQt6.QtWidgets import QMainWindow, QDialog, QFileDialog, QLabel, QTableWidgetItem, QTableWidget, QPushButton, \
+    QMessageBox
 from PyQt6.QtGui import QPixmap, QIcon, QAction, QColor
 
 Current_login, info = "", ""
@@ -200,7 +202,9 @@ class MainWindow(QMainWindow):
         self.reload_pushButton.clicked.connect(self.update_books)
         self.change_user_info_action.triggered.connect(self.change_user_info)
         self.delete_library_action.triggered.connect(self.delete_library)
+        self.add_staff_action.triggered.connect(self.staff_sign_up)
         self.change_staff_info_action.triggered.connect(self.change_staff_info)
+        self.account_del_action.triggered.connect(self.del_acc)
         self.change_login_action.triggered.connect(self.change_login)
         self.change_password_action.triggered.connect(self.change_password)
         self.add_library_action.triggered.connect(self.add_library)
@@ -277,6 +281,10 @@ class MainWindow(QMainWindow):
         self.verticalLayout.setStretch(1, 1)
         self.verticalLayout.setStretch(2, 10)
 
+    def del_acc(self):
+        self.del_acc_window = DeleteAccountWindow()
+        self.del_acc_window.show()
+
     def show_rented_books(self):
         self.show_rented_books_window = ShowRentedBooksWindow()
         self.show_rented_books_window.show()
@@ -324,6 +332,111 @@ class MainWindow(QMainWindow):
         self.edit_library_window = EditLibraryWindow()
         self.edit_library_window.show()
 
+    def staff_sign_up(self):
+        self.staff_sign_up_window = StaffSignUp()
+        self.staff_sign_up_window.show()
+
+
+class DeleteAccountWindow(QDialog):
+    def __init__(self):
+        super(DeleteAccountWindow, self).__init__()
+        uic.loadUi('Ui\\account_delete_window.ui', self)
+        icon = QIcon(":/images/icon.ico")
+        self.setWindowIcon(icon)
+        self.error_label.hide()
+        self.del_pushButton.clicked.connect(self.delete)
+
+    def on_button_click(self):
+        requests.delete_user(Current_login)
+        app.closeAllWindows()
+        app.exit()
+
+    def delete(self):
+        if requests.auth(Current_login, self.password_lineEdit.text()):
+            if (requests.is_row_exist('Auth', 'Login', Current_login)):
+                alert = QMessageBox()
+                icon = QIcon(":/images/icon.ico")
+                alert.setWindowIcon(icon)
+                alert.setText("Вы действительно хотите удалить свой аккаунт?")
+                alert.setWindowTitle("Осторожно!")
+                alert.setStandardButtons(QMessageBox.StandardButton.Ok)
+                button = alert.button(QMessageBox.StandardButton.Ok)
+                button.setText('Подтвердить')
+                button.clicked.connect(self.on_button_click)
+                alert.exec()
+        else:
+            self.error_label.setText("Неверный пароль!")
+            self.error_label.show()
+
+
+class StaffSignUp(QDialog):
+    def __init__(self):
+        super(StaffSignUp, self).__init__()
+        uic.loadUi('Ui\\add_staff_window.ui', self)
+        icon = QIcon(":/images/icon.ico")
+        self.setWindowIcon(icon)
+        self.pushButton.clicked.connect(self.data_check)
+        self.comboBox.addItems(requests.select_libraries())
+
+    def data_check(self):
+        passport_number = self.passport_lineEdit.text()
+        rep = {' ': '', '-': ''}
+        rep = dict((re.escape(k), v) for k, v in rep.items())
+        pattern = re.compile("|".join(rep.keys()))
+        passport_number = pattern.sub(lambda m: rep[re.escape(m.group(0))], passport_number)
+        snils_number = pattern.sub(lambda m: rep[re.escape(m.group(0))], self.SNILS_lineEdit.text())
+        
+        if (self.login_lineEdit.text() != "" and self.password_lineEdit.text() != "" and
+                self.password_confirm_lineEdit.text() != "" and self.name_lineEdit.text() != "" and
+                self.surname_lineEdit.text() != "" and self.patronymic_lineEdit.text() != "" and
+                passport_number != "" and snils_number != "" and self.INN_lineEdit.text() != "" and
+                self.comboBox.currentText() != ""):
+            if (self.password_lineEdit.text() == self.password_confirm_lineEdit.text()):
+                if len(passport_number) == 10:
+                    if requests.is_row_exist("Auth", "Login", self.login_lineEdit.text()):
+                        self.print_error("login")
+                        return
+                    if requests.is_row_exist("Personal", "Passport_Number", passport_number):
+                        self.print_error("passport")
+                        return
+                    if requests.is_row_exist("Personal", "SNILS_Number", snils_number):
+                        self.print_error("snils")
+                        return
+                    if requests.is_row_exist("Personal", "INN_Number", self.INN_lineEdit.text()):
+                        self.print_error("inn")
+                        return
+                    requests.personal_sign_up(self.comboBox.currentText(),
+                                              self.login_lineEdit.text(),
+                                              self.password_lineEdit.text(),
+                                              self.name_lineEdit.text(),
+                                              self.surname_lineEdit.text(),
+                                              self.patronymic_lineEdit.text(),
+                                              passport_number,
+                                              snils_number,
+                                              self.INN_lineEdit.text())
+                    self.close()
+            else:
+                self.print_error("pass")
+        else:
+            self.print_error("miss")
+
+    def print_error(self,error_type):
+        match error_type:
+            case "pass":
+                self.error_label.setText("Введенные пароли не совпадают!")
+            case "phone":
+                self.error_label.setText("Такой телефон уже зарегистрирован!")
+            case "email":
+                self.error_label.setText("Такая почта уже зарегистрирована!")
+            case "login":
+                self.error_label.setText("Такой логин уже зарегистрирован!")
+            case "miss":
+                self.error_label.setText("Заполните все поля!")
+            case "snils":
+                self.error_label.setText("Данный номер СНИЛС уже зарегистрирован!")
+            case "inn":
+                self.error_label.setText("Данный номер ИНН уже зарегистрирован!")
+
 
 class ShowRentedBooksWindow(QDialog):
     def __init__(self):
@@ -331,6 +444,7 @@ class ShowRentedBooksWindow(QDialog):
         uic.loadUi('Ui\\unrent_window.ui', self)
         icon = QIcon(":/images/icon.ico")
         self.setWindowIcon(icon)
+        self.export_pushButton.clicked.connect(self.exportToCSV)
         self.show_rent()
 
     def show_rent(self):
@@ -365,9 +479,23 @@ class ShowRentedBooksWindow(QDialog):
             icon = QIcon(':/images/check.ico')
             button.setIcon(icon)
             button.setObjectName(str(row))
-            #button.clicked.connect(self.remove_rent)
             self.rent_tableWidget.setCellWidget(row, 7, button)
             row += 1
+
+    def exportToCSV(self):
+        ind = 0
+        if requests.is_row_exist('Personal', 'Login', Current_login):
+            ind = 1
+        else:
+            ind = 0
+        with open('table_data.csv', 'w', newline='') as file:
+            writer = csv.writer(file)
+            for row in range(self.rent_tableWidget.rowCount()):
+                row_data = []
+                for column in range(self.rent_tableWidget.columnCount() - ind):
+                    item = self.rent_tableWidget.item(row, column)
+                    row_data.append(item.text())
+                writer.writerow(row_data)
 
 
 class ChangeUserInfoWindow(QDialog):
